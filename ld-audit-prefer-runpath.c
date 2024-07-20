@@ -93,23 +93,27 @@ static int iterate_delim_str(const char *s, char c,
   return 0;
 }
 
-static int check_ignore_lib(const char *ignore_lib, size_t len, void *data) {
-  DPRINTF("%.*s\n", (int)len, ignore_lib);
+static int check_lib_name(const char *lib, size_t len, void *data) {
+  DPRINTF("%.*s\n", (int)len, lib);
   const char *cur_lib = (const char *)data;
-  return strncmp(ignore_lib, cur_lib, len) == 0;
+  return strncmp(lib, cur_lib, len) == 0;
 }
 
 static int enabled;
 
 unsigned int la_version(unsigned int version) {
-  // check if the executable is built for Nix
-  int nix_rtld_found = dl_iterate_phdr(&check_nix_rtld, NULL);
+  if (getenv("LAPR_ENABLE_FOR_ALL")) {
+    enabled = 1;
+  } else {
+    // check if the executable is built for Nix
+    int nix_rtld_found = dl_iterate_phdr(&check_nix_rtld, NULL);
 
-  // we don't want to change behavior of binaries not built for Nix
-  // according to manual returning 0 here disables this audit module, but it
-  // causes crashes on some old versions of glibc, so we maintain the enable
-  // flag ourselves
-  enabled = nix_rtld_found;
+    // we don't want to change behavior of binaries not built for Nix according
+    // to manual returning 0 here disables this audit module, but it causes
+    // crashes on some old versions of glibc, so we maintain the enable flag
+    // ourselves
+    enabled = nix_rtld_found;
+  }
 
   DPRINTF("version=%u LAV_CURRENT=%u enabled=%d\n", version, LAV_CURRENT,
           enabled);
@@ -132,18 +136,27 @@ char *la_objsearch(const char *name, uintptr_t *cookie, unsigned int flag) {
 
   static char name_buf[PATH_MAX];
   static int libpath_found;
-  static int ignored;
+  static int ignore;
+  static int disable_libpath;
 
   // initialization
   if (flag == LA_SER_ORIG) {
     libpath_found = 0;
     char *ignore_libs = getenv("LAPR_IGNORE_LIBS");
-    ignored = iterate_delim_str(ignore_libs, ':', &check_ignore_lib, name);
+    ignore = iterate_delim_str(ignore_libs, ':', &check_lib_name, name);
+    char *disable_libpath_libs = getenv("LAPR_DISABLE_LIBPATH_LIBS");
+    disable_libpath =
+        iterate_delim_str(disable_libpath_libs, ':', &check_lib_name, name);
   }
 
-  if (ignored) {
+  if (ignore) {
     DPUTS("ignored");
     return (char *)name;
+  }
+
+  if (flag == LA_SER_LIBPATH && disable_libpath) {
+    DPUTS("libpath disabled");
+    return NULL;
   }
 
   // save the matching entry from LD_LIBRARY_PATH and return it after searching
