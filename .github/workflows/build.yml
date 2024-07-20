@@ -1,5 +1,11 @@
 on: [push, pull_request]
 jobs:
+  style:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get -y install clang-format
+      - run: git ls-files -- "*.c" "*.h" | xargs -t clang-format --dry-run --Werror
   pkgs:
     strategy:
       matrix:

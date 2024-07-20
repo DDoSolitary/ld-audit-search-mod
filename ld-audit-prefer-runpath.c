@@ -17,16 +17,16 @@
 #endif
 
 // support old versions of glibc
-#if defined( __aarch64__ )
+#if defined(__aarch64__)
 // aarch64 Linux only goes back to 2.17.
-__asm__( ".symver close,close@GLIBC_2.17" );
-__asm__( ".symver open,open@GLIBC_2.17" );
-__asm__( ".symver printf,printf@GLIBC_2.17" );
-#elif defined( __x86_64__ )
+__asm__(".symver close,close@GLIBC_2.17");
+__asm__(".symver open,open@GLIBC_2.17");
+__asm__(".symver printf,printf@GLIBC_2.17");
+#elif defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
-__asm__( ".symver close,close@GLIBC_2.2.5" );
-__asm__( ".symver open,open@GLIBC_2.2.5" );
-__asm__( ".symver printf,printf@GLIBC_2.2.5" );
+__asm__(".symver close,close@GLIBC_2.2.5");
+__asm__(".symver open,open@GLIBC_2.2.5");
+__asm__(".symver printf,printf@GLIBC_2.2.5");
 #endif
 
 // _rtld_global._dl_ns[0]._ns_loaded
