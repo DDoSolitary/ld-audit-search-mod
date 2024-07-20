@@ -5,7 +5,7 @@
 #include <limits.h>
 #include <link.h>
 #include <stddef.h>
-#include <sys/syscall.h>
+#include <unistd.h>
 
 #ifdef DEBUG_LOG
 #include <stdio.h>
@@ -14,6 +14,19 @@
 #else
 #define DPRINTF(fmt, ...)
 #define DPUTS(s)
+#endif
+
+// support old versions of glibc
+#if defined( __aarch64__ )
+// aarch64 Linux only goes back to 2.17.
+__asm__( ".symver close,close@GLIBC_2.17" );
+__asm__( ".symver open,open@GLIBC_2.17" );
+__asm__( ".symver printf,printf@GLIBC_2.17" );
+#elif defined( __x86_64__ )
+// x86_64 Linux goes back to 2.2.5.
+__asm__( ".symver close,close@GLIBC_2.2.5" );
+__asm__( ".symver open,open@GLIBC_2.2.5" );
+__asm__( ".symver printf,printf@GLIBC_2.2.5" );
 #endif
 
 // _rtld_global._dl_ns[0]._ns_loaded
@@ -49,20 +62,11 @@ static int endswith(const char *a, const char *b) {
 static int try_path(const char *path) {
   // TODO: mimick behavior of open_verify in elf/dl-load.c and check validity of
   // the ELF file, so that invalid or incompatible libraries can be skipped
-  int fd;
-  asm volatile("syscall"
-               : "=a"(fd)
-               : "a"(__NR_open), "D"(path), "S"(O_RDONLY)
-               : "rcx", "r11", "memory");
+  int fd = open(path, O_RDONLY);
   if (fd < 0) {
     return 0;
   }
-  // we don't care about return value of close actually
-  int ret;
-  asm volatile("syscall"
-               : "=a"(ret)
-               : "a"(__NR_close), "D"(fd)
-               : "rcx", "r11", "memory");
+  close(fd);
   return 1;
 }
 
