@@ -18,6 +18,7 @@
 #if defined(__aarch64__)
 // aarch64 Linux only goes back to 2.17.
 __asm__(".symver close,close@GLIBC_2.17");
+__asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.17");
 __asm__(".symver open,open@GLIBC_2.17");
 __asm__(".symver printf,printf@GLIBC_2.17");
 __asm__(".symver strncmp,strncmp@GLIBC_2.17");
@@ -25,15 +26,12 @@ __asm__(".symver strlen,strlen@GLIBC_2.17");
 #elif defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
 __asm__(".symver close,close@GLIBC_2.2.5");
+__asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.2.5");
 __asm__(".symver open,open@GLIBC_2.2.5");
 __asm__(".symver printf,printf@GLIBC_2.2.5");
 __asm__(".symver strncmp,strncmp@GLIBC_2.2.5");
 __asm__(".symver strlen,strlen@GLIBC_2.2.5");
 #endif
-
-// _rtld_global._dl_ns[0]._ns_loaded
-// https://github.com/bminor/glibc/blob/910aae6e5a2196938fc30fa54dd1e96f16774ce7/sysdeps/generic/ldsodefs.h#L318
-extern struct link_map *_rtld_global;
 
 static int startswith(const char *a, const char *b) {
   return strncmp(a, b, strlen(b)) == 0;
@@ -58,20 +56,23 @@ static int try_path(const char *path) {
   return 1;
 }
 
+static int check_nix_rtld(struct dl_phdr_info *info, size_t size, void *data) {
+  const char *name = info->dlpi_name;
+  DPRINTF("checking %s\n", name);
+  if (name && startswith(name, NIX_STORE_DIR "/") &&
+      endswith(name, "/" NIX_RTLD_NAME)) {
+    DPUTS("nix ld.so found");
+    // stop iteration
+    return 1;
+  }
+  return 0;
+}
+
 static int enabled;
 
 unsigned int la_version(unsigned int version) {
-  // find path of ld.so
-  int nix_rtld_found = 0;
-  for (struct link_map *m = _rtld_global; m; m = m->l_next) {
-    char *name = m->l_name;
-    if (name && startswith(name, NIX_STORE_DIR "/") &&
-        endswith(name, "/" NIX_RTLD_NAME)) {
-      DPRINTF("nix ld.so found at %s\n", name);
-      nix_rtld_found = 1;
-      break;
-    }
-  }
+  // check if the executable is built for Nix
+  int nix_rtld_found = dl_iterate_phdr(&check_nix_rtld, NULL);
 
   // we don't want to change behavior of binaries not built for Nix
   // according to manual returning 0 here disables this audit module, but it
