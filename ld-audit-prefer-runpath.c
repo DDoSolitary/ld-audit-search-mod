@@ -7,8 +7,8 @@
 
 #ifdef DEBUG_LOG
 #include <stdio.h>
-#define DPRINTF(fmt, ...) printf("%s: " fmt, __func__, __VA_ARGS__)
-#define DPUTS(s) printf("%s: %s\n", __func__, s)
+#define DPRINTF(fmt, ...) fprintf(stderr, "%s: " fmt, __func__, __VA_ARGS__)
+#define DPUTS(s) fprintf(stderr, "%s: %s\n", __func__, s)
 #else
 #define DPRINTF(fmt, ...)
 #define DPUTS(s)
@@ -19,18 +19,20 @@
 // aarch64 Linux only goes back to 2.17.
 __asm__(".symver close,close@GLIBC_2.17");
 __asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.17");
+__asm__(".symver fprintf,fprintf@GLIBC_2.17");
 __asm__(".symver open,open@GLIBC_2.17");
-__asm__(".symver printf,printf@GLIBC_2.17");
-__asm__(".symver strncmp,strncmp@GLIBC_2.17");
+__asm__(".symver stderr,stderr@GLIBC_2.17");
 __asm__(".symver strlen,strlen@GLIBC_2.17");
+__asm__(".symver strncmp,strncmp@GLIBC_2.17");
 #elif defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
 __asm__(".symver close,close@GLIBC_2.2.5");
 __asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.2.5");
+__asm__(".symver fprintf,fprintf@GLIBC_2.2.5");
 __asm__(".symver open,open@GLIBC_2.2.5");
-__asm__(".symver printf,printf@GLIBC_2.2.5");
-__asm__(".symver strncmp,strncmp@GLIBC_2.2.5");
+__asm__(".symver stderr,stderr@GLIBC_2.2.5");
 __asm__(".symver strlen,strlen@GLIBC_2.2.5");
+__asm__(".symver strncmp,strncmp@GLIBC_2.2.5");
 #endif
 
 static int startswith(const char *a, const char *b) {
