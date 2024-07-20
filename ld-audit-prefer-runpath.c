@@ -1,10 +1,8 @@
-// use of libc functions is specifically avoided so that this library can be
-// loaded in environments with old glibc
-
 #include <fcntl.h>
 #include <limits.h>
 #include <link.h>
 #include <stddef.h>
+#include <string.h>
 #include <unistd.h>
 
 #ifdef DEBUG_LOG
@@ -16,17 +14,21 @@
 #define DPUTS(s)
 #endif
 
-// support old versions of glibc
+// ensure support for old versions of glibc
 #if defined(__aarch64__)
 // aarch64 Linux only goes back to 2.17.
 __asm__(".symver close,close@GLIBC_2.17");
 __asm__(".symver open,open@GLIBC_2.17");
 __asm__(".symver printf,printf@GLIBC_2.17");
+__asm__(".symver strncmp,strncmp@GLIBC_2.17");
+__asm__(".symver strlen,strlen@GLIBC_2.17");
 #elif defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
 __asm__(".symver close,close@GLIBC_2.2.5");
 __asm__(".symver open,open@GLIBC_2.2.5");
 __asm__(".symver printf,printf@GLIBC_2.2.5");
+__asm__(".symver strncmp,strncmp@GLIBC_2.2.5");
+__asm__(".symver strlen,strlen@GLIBC_2.2.5");
 #endif
 
 // _rtld_global._dl_ns[0]._ns_loaded
@@ -34,29 +36,15 @@ __asm__(".symver printf,printf@GLIBC_2.2.5");
 extern struct link_map *_rtld_global;
 
 static int startswith(const char *a, const char *b) {
-  for (; *a && *b; a++, b++) {
-    if (*a != *b) {
-      return 0;
-    }
-  }
-  return !*b;
+  return strncmp(a, b, strlen(b)) == 0;
 }
 
 static int endswith(const char *a, const char *b) {
-  int i = 0;
-  while (a[i]) {
-    i++;
+  size_t a_len = strlen(a), b_len = strlen(b);
+  if (a_len < b_len) {
+    return 0;
   }
-  int j = 0;
-  while (b[j]) {
-    j++;
-  }
-  for (; i >= 0 && j >= 0; i--, j--) {
-    if (a[i] != b[j]) {
-      return 0;
-    }
-  }
-  return j < 0;
+  return strncmp(a + a_len - b_len, b, b_len) == 0;
 }
 
 static int try_path(const char *path) {
