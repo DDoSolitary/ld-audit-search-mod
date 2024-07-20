@@ -17,23 +17,18 @@
 // ensure support for old versions of glibc
 #if defined(__aarch64__)
 // aarch64 Linux only goes back to 2.17.
-__asm__(".symver close,close@GLIBC_2.17");
-__asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.17");
-__asm__(".symver fprintf,fprintf@GLIBC_2.17");
-__asm__(".symver open,open@GLIBC_2.17");
-__asm__(".symver stderr,stderr@GLIBC_2.17");
-__asm__(".symver strlen,strlen@GLIBC_2.17");
-__asm__(".symver strncmp,strncmp@GLIBC_2.17");
+#define FORCE_SYMVER(sym) __asm__(".symver " #sym "," #sym "@GLIBC_2.17")
 #elif defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
-__asm__(".symver close,close@GLIBC_2.2.5");
-__asm__(".symver dl_iterate_phdr,dl_iterate_phdr@GLIBC_2.2.5");
-__asm__(".symver fprintf,fprintf@GLIBC_2.2.5");
-__asm__(".symver open,open@GLIBC_2.2.5");
-__asm__(".symver stderr,stderr@GLIBC_2.2.5");
-__asm__(".symver strlen,strlen@GLIBC_2.2.5");
-__asm__(".symver strncmp,strncmp@GLIBC_2.2.5");
+#define FORCE_SYMVER(sym) __asm__(".symver " #sym "," #sym "@GLIBC_2.2.5")
 #endif
+FORCE_SYMVER(close);
+FORCE_SYMVER(dl_iterate_phdr);
+FORCE_SYMVER(fprintf);
+FORCE_SYMVER(open);
+FORCE_SYMVER(stderr);
+FORCE_SYMVER(strlen);
+FORCE_SYMVER(strncmp);
 
 static int startswith(const char *a, const char *b) {
   return strncmp(a, b, strlen(b)) == 0;
