@@ -22,7 +22,8 @@ your-program
 # Use with Home Manager
 ```nix
 { inputs, pkgs }: {
-  home.sessionVariables.LD_AUDIT = "${inputs.ld-audit-prefer-runpath.packages.${system}.default}/lib/ld-audit-prefer-runpath.so";
+  nixpkgs.overlays = [ inputs.ld-audit-prefer-runpath.overlays.default ];
+  home.sessionVariables.LD_AUDIT = "${pkgs.ld-audit-prefer-runpath}/lib/ld-audit-prefer-runpath.so";
 }
 ```
 
