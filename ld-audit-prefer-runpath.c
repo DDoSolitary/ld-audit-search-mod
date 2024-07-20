@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <link.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -25,6 +26,7 @@
 FORCE_SYMVER(close);
 FORCE_SYMVER(dl_iterate_phdr);
 FORCE_SYMVER(fprintf);
+FORCE_SYMVER(getenv);
 FORCE_SYMVER(open);
 FORCE_SYMVER(stderr);
 FORCE_SYMVER(strlen);
@@ -65,6 +67,38 @@ static int check_nix_rtld(struct dl_phdr_info *info, size_t size, void *data) {
   return 0;
 }
 
+// something like strtok, but does not change the input string
+static int iterate_delim_str(const char *s, char c,
+                             int (*callback)(const char *, size_t, void *),
+                             void *data) {
+  if (!s) {
+    return 0;
+  }
+  while (1) {
+    const char *next = s;
+    while (*next != c && *next) {
+      next++;
+    }
+    if (next != s) {
+      int ret = callback(s, next - s, data);
+      if (ret) {
+        return ret;
+      }
+    }
+    if (!*next) {
+      break;
+    }
+    s = next + 1;
+  }
+  return 0;
+}
+
+static int check_ignore_lib(const char *ignore_lib, size_t len, void *data) {
+  DPRINTF("%.*s\n", (int)len, ignore_lib);
+  const char *cur_lib = (const char *)data;
+  return strncmp(ignore_lib, cur_lib, len) == 0;
+}
+
 static int enabled;
 
 unsigned int la_version(unsigned int version) {
@@ -88,9 +122,6 @@ unsigned int la_version(unsigned int version) {
   return LAV_CURRENT;
 }
 
-static char name_buf[PATH_MAX];
-static int libpath_found;
-
 char *la_objsearch(const char *name, uintptr_t *cookie, unsigned int flag) {
   if (!enabled) {
     DPUTS("disabled");
@@ -99,9 +130,20 @@ char *la_objsearch(const char *name, uintptr_t *cookie, unsigned int flag) {
 
   DPRINTF("cookie=%p flag=%u name=%s\n", cookie, flag, name);
 
+  static char name_buf[PATH_MAX];
+  static int libpath_found;
+  static int ignored;
+
   // initialization
   if (flag == LA_SER_ORIG) {
     libpath_found = 0;
+    char *ignore_libs = getenv("LAPR_IGNORE_LIBS");
+    ignored = iterate_delim_str(ignore_libs, ':', &check_ignore_lib, name);
+  }
+
+  if (ignored) {
+    DPUTS("ignored");
+    return (char *)name;
   }
 
   // save the matching entry from LD_LIBRARY_PATH and return it after searching
