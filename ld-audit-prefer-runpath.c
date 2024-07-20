@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <link.h>
@@ -16,21 +17,29 @@
 #endif
 
 // ensure support for old versions of glibc
-#if defined(__aarch64__)
-// aarch64 Linux only goes back to 2.17.
-#define FORCE_SYMVER(sym) __asm__(".symver " #sym "," #sym "@GLIBC_2.17")
-#elif defined(__x86_64__)
+#if defined(__x86_64__)
 // x86_64 Linux goes back to 2.2.5.
 #define FORCE_SYMVER(sym) __asm__(".symver " #sym "," #sym "@GLIBC_2.2.5")
+#elif defined(__aarch64__)
+// aarch64 Linux only goes back to 2.17.
+#define FORCE_SYMVER(sym) __asm__(".symver " #sym "," #sym "@GLIBC_2.17")
+#else
+#error "unsupported architecture"
 #endif
+FORCE_SYMVER(__errno_location);
 FORCE_SYMVER(close);
 FORCE_SYMVER(dl_iterate_phdr);
 FORCE_SYMVER(fprintf);
 FORCE_SYMVER(getenv);
 FORCE_SYMVER(open);
+FORCE_SYMVER(read);
 FORCE_SYMVER(stderr);
 FORCE_SYMVER(strlen);
 FORCE_SYMVER(strncmp);
+
+#define ELFW(x) ELFW_1(x, __ELF_NATIVE_CLASS)
+#define ELFW_1(x, y) ELFW_2(x, y)
+#define ELFW_2(x, y) ELF##x##y
 
 static int startswith(const char *a, const char *b) {
   return strncmp(a, b, strlen(b)) == 0;
@@ -44,14 +53,100 @@ static int endswith(const char *a, const char *b) {
   return strncmp(a + a_len - b_len, b, b_len) == 0;
 }
 
+// mimick the behavior of open_path and open_verify
+// https://github.com/bminor/glibc/blob/glibc-2.39/elf/dl-load.c#L1918
+// in case of fatal errors, we should return the path back to ld.so so that it
+// can detect the error and abort the search process
+static int is_fatal_err() {
+  int err = errno;
+  return err != ENOENT && err != ENOTDIR && err != EACCES;
+}
+
 static int try_path(const char *path) {
-  // TODO: mimick behavior of open_verify in elf/dl-load.c and check validity of
-  // the ELF file, so that invalid or incompatible libraries can be skipped
   int fd = open(path, O_RDONLY);
   if (fd < 0) {
-    return 0;
+    return is_fatal_err();
+  }
+  ElfW(Ehdr) ehdr;
+  size_t off = 0;
+  while (off < sizeof(ehdr)) {
+    ssize_t ret = read(fd, &ehdr, sizeof(ehdr) - off);
+    if (ret == 0) {
+      DPUTS("file too short");
+      close(fd);
+      return 1;
+    }
+    if (ret < 0) {
+      DPUTS("read error");
+      close(fd);
+      return is_fatal_err();
+    }
+    off += ret;
   }
   close(fd);
+
+  if (ehdr.e_ident[EI_MAG0] != ELFMAG0 || ehdr.e_ident[EI_MAG1] != ELFMAG1 ||
+      ehdr.e_ident[EI_MAG2] != ELFMAG2 || ehdr.e_ident[EI_MAG3] != ELFMAG3) {
+    DPUTS("invalid ELF magic number");
+    return 1;
+  }
+
+  if (ehdr.e_ident[EI_CLASS] != ELFW(CLASS)) {
+    DPUTS("word size mismatch");
+    // multilib support
+    return 0;
+  }
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+  if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  if (ehdr.e_ident[EI_DATA] != ELFDATA2MSB) {
+#else
+#error "unsupported byte order"
+#endif
+    DPUTS("byte order mismatch");
+    return 1;
+  }
+
+  if (ehdr.e_ident[EI_VERSION] != EV_CURRENT) {
+    DPUTS("ELF version mismatch");
+    return 1;
+  }
+
+  // https://github.com/bminor/glibc/blob/glibc-2.39/sysdeps/gnu/ldsodefs.h
+  if (ehdr.e_ident[EI_OSABI] != ELFOSABI_SYSV &&
+      ehdr.e_ident[EI_OSABI] != ELFOSABI_GNU) {
+    DPUTS("OS ABI mismatch");
+    return 1;
+  }
+  if (!(ehdr.e_ident[EI_ABIVERSION] == 0 ||
+        (ehdr.e_ident[EI_OSABI] == ELFOSABI_GNU &&
+         // no way to retrieve LIBC_ABI_MAX at runtime
+         ehdr.e_ident[EI_ABIVERSION] < 4))) {
+    DPUTS("ABI version mismatch");
+    return 1;
+  }
+
+  for (int i = EI_PAD; i < EI_NIDENT; i++) {
+    if (ehdr.e_ident[i]) {
+      DPUTS("non-zero padding in e_ident");
+      return 1;
+    }
+  }
+
+#ifdef __x86_64__
+  if (ehdr.e_machine != EM_X86_64) {
+#elif __aarch64__
+  if (ehdr.e_machine != EM_AARCH64) {
+#endif
+    DPUTS("arch mismatch");
+    return 0;
+  }
+
+  // we don't care about other fatal errors
+  // the next and last non-fatal error check is elf_machine_reject_phdr_p, which
+  // is only defined for MIPS
+
   return 1;
 }
 

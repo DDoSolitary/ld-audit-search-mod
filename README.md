@@ -26,7 +26,3 @@ your-program
   home.sessionVariables.LD_AUDIT = "${pkgs.ld-audit-prefer-runpath}/lib/ld-audit-prefer-runpath.so";
 }
 ```
-
-# Known Issues
-
-- This module does not verify content of files found in LD_LIBRARY_PATH. An invalid or incompatible (e.g. 32-bit libraries on a 64-bit system) file may shadow valid libraries and cause errors.

@@ -2,7 +2,7 @@
   name = "ld-audit-prefer-runpath";
   src = ./.;
   hardeningDisable = [
-    "fortify" # get rid of __*_chk symbols
+    "fortify" "stackprotector" # get rid of __*_chk symbols
   ];
   buildPhase = ''
     nix_rtld_path=$(cat ${stdenv.cc}/nix-support/dynamic-linker)
