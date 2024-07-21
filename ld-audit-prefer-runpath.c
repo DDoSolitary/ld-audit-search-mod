@@ -191,7 +191,8 @@ static int iterate_delim_str(const char *s, char c,
 static int check_lib_name(const char *lib, size_t len, void *data) {
   DPRINTF("%.*s\n", (int)len, lib);
   const char *cur_lib = (const char *)data;
-  return strncmp(lib, cur_lib, len) == 0;
+  size_t cur_lib_len = strlen(cur_lib);
+  return len == cur_lib_len && strncmp(lib, cur_lib, len) == 0;
 }
 
 static int enabled;
