@@ -1,0 +1,49 @@
+log_level: warning
+rules:
+  # only the first rule with matching conditions takes effect
+  - cond:
+      # (optional) nix|normal|any
+      rtld: nix
+      # (optional) regexp matching library name
+      lib: libc\.so\..*
+
+    # change the library file name to search
+    # rename: my_libc.so
+
+    # The following are config sections for different types of library search
+    # paths.
+    # A section will only take effect when at least one path of the
+    # corresponding type is search by ld.so.
+
+    # DT_RPATH
+    rpath:
+
+    # LD_LIBRARY_PATH
+    libpath:
+      # ignore libraries found for now, and save the first valid library path
+      # for use in "saved" entries
+      save: true
+
+    # DT_RUNPATH
+    runpath:
+
+    # ldconfig cache
+    config:
+
+    # system default directories
+    default:
+      # search these paths first
+      prepend:
+        # use a previously saved path
+        - saved: libpath
+        # simply search the path
+        - file: /path/to/file
+        # search /path/to/dir/<name>
+        - dir: /path/to/dir
+      # regexp filters
+      # applies to paths searched by ld.so, but not those configured here in
+      # the "prepend" section
+      # only the first matching item takes effect
+      filter:
+        - include: /lib64/.*
+        - exclude: .*

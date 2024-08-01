@@ -5,13 +5,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get -y install clang-format
-      - run: git ls-files -- "*.c" "*.h" | xargs -t clang-format --dry-run --Werror
+      - run: git ls-files -- "*.cpp" | xargs -t clang-format --dry-run --Werror
   pkgs:
     strategy:
       matrix:
-        package:
-          - ld-audit-prefer-runpath
-          - ld-audit-prefer-runpath-dbg
         arch:
           - x86_64
           - aarch64
@@ -26,7 +23,7 @@ jobs:
           sudo mkdir -p /etc/nix
           echo "extra-platforms = ${{ matrix.arch }}-linux" | sudo tee -a /etc/nix/nix.conf
           sudo systemctl restart nix-daemon
-      - run: nix build -L --no-update-lock-file .#packages.${{ matrix.arch }}-linux.${{ matrix.package }}
+      - run: nix build -L --no-update-lock-file .#defaultPackage.${{ matrix.arch }}-linux
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.package }}-${{ matrix.arch }}-linux
