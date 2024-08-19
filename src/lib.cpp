@@ -252,6 +252,8 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
         cur_state->has_dt_runpath = true;
       }
     }
+    SPDLOG_DEBUG("l_name={} has_dt_runpath={}", lm->l_name,
+                 cur_state->has_dt_runpath);
 
     cur_state->rule.reset(YAML::Node(YAML::NodeType::Undefined));
     auto rules = (*cfg)["rules"];
