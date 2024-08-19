@@ -257,6 +257,7 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
 
     cur_state->rule.reset(YAML::Node(YAML::NodeType::Undefined));
     auto rules = (*cfg)["rules"];
+    std::cmatch lib_match_result;
     for (size_t i = 0; i < rules.size(); i++) {
       auto rule = rules[i];
       auto rtld_type = rule["cond"]["rtld"].as<std::string>("any");
@@ -265,7 +266,8 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
         continue;
       }
       if (!std::regex_match(
-              name, std::regex(rule["cond"]["lib"].as<std::string>(".*")))) {
+              name, lib_match_result,
+              std::regex(rule["cond"]["lib"].as<std::string>(".*")))) {
         continue;
       }
       if (!std::regex_match(
@@ -281,7 +283,8 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
 
     if (cur_state->rule) {
       if (auto rename_node = cur_state->rule["rename"]; rename_node) {
-        cur_state->lib_name = rename_node.as<std::string>();
+        cur_state->lib_name =
+            lib_match_result.format(rename_node.as<std::string>());
       } else {
         cur_state->lib_name = name;
       }

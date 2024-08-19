@@ -13,6 +13,7 @@ rules:
       dependent_lib: .*
 
     # change the library file name to search
+    # $n can be used to reference capture groups in cond.lib
     # rename: my_libc.so
 
     # The following are config sections for different types of library search
