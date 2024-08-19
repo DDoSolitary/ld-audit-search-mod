@@ -48,7 +48,7 @@ struct search_state {
   YAML::Node rule;
   std::string lib_name;
   std::unordered_map<std::string, std::string> block_states;
-  bool libpath_searched;
+  bool has_dt_runpath;
 };
 
 std::optional<search_state> cur_state;
@@ -243,6 +243,16 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
   // initialization
   if (flag == LA_SER_ORIG) {
     cur_state.emplace();
+
+    // undocumented way to retrieve link_map of the dependent library
+    auto lm = *(const link_map *const *)cookie;
+    cur_state->has_dt_runpath = false;
+    for (auto dyn = lm->l_ld; dyn->d_tag != DT_NULL; dyn++) {
+      if (dyn->d_tag == DT_RUNPATH) {
+        cur_state->has_dt_runpath = true;
+      }
+    }
+
     cur_state->rule.reset(YAML::Node(YAML::NodeType::Undefined));
     auto rules = (*cfg)["rules"];
     for (size_t i = 0; i < rules.size(); i++) {
@@ -281,10 +291,9 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
   std::string rule_block_name;
   switch (flag) {
   case LA_SER_RUNPATH:
-    rule_block_name = cur_state->libpath_searched ? "runpath" : "rpath";
+    rule_block_name = cur_state->has_dt_runpath ? "runpath" : "rpath";
     break;
   case LA_SER_LIBPATH:
-    cur_state->libpath_searched = true;
     rule_block_name = "libpath";
     break;
   case LA_SER_CONFIG:
