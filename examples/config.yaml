@@ -64,6 +64,17 @@ env:
     # so it may not affect programs that reads env vars in another DT_INIT
     # function, or doesn't use libc to read env vars (e.g. Golang)
     setenv:
+      # set NAME1=VALUE, replace if existing
       NAME1: VALUE
+      # set NAME2=VALUE:$NAME2 if existing, otherwise set NAME1=VALUE
+      NAME2:
+        type: prepend
+        # defaults to : if not set
+        splitter: ":"
+        value: VALUE
+      # set NAME3=$NAME3:VALUE if existing, otherwise set NAME3=VALUE
+      NAME3:
+        type: append
+        value: VALUE
     unsetenv:
       - NAME2

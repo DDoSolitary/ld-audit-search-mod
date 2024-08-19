@@ -246,7 +246,22 @@ __attribute__((constructor)) void init() {
     }
     for (auto setenv_node : env_rule["setenv"]) {
       auto name = setenv_node.first.as<std::string>();
-      auto value = setenv_node.second.as<std::string>();
+      std::stringstream ss;
+      if (setenv_node.second.IsScalar()) {
+        ss << setenv_node.second.as<std::string>();
+      } else {
+        auto type = setenv_node.second["type"].as<std::string>();
+        auto splitter = setenv_node.second["splitter"].as<std::string>(":");
+        auto new_value = setenv_node.second["value"].as<std::string>();
+        if (auto orig_ptr = getenv(name.c_str()); orig_ptr) {
+          if (type == "prepend") {
+            ss << new_value << splitter << orig_ptr;
+          } else if (type == "append") {
+            ss << orig_ptr << splitter << new_value;
+          }
+        }
+      }
+      auto value = ss.str();
       SPDLOG_DEBUG("setenv {}={}", name, value);
       setenv(name.c_str(), value.c_str(), true);
     }
