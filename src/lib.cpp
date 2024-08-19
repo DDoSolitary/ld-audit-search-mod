@@ -266,6 +266,12 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
               name, std::regex(rule["cond"]["lib"].as<std::string>(".*")))) {
         continue;
       }
+      if (!std::regex_match(
+              lm->l_name,
+              std::regex(
+                  rule["cond"]["dependent_lib"].as<std::string>(".*")))) {
+        continue;
+      }
       SPDLOG_DEBUG("rule {} matched", i);
       cur_state->rule.reset(rule);
       break;

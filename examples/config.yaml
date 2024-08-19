@@ -6,6 +6,11 @@ rules:
       rtld: nix
       # (optional) regexp matching library name
       lib: libc\.so\..*
+      # (optional) regexp matching dependent library name
+      # If multiple libraries depend on the same library, only the first one
+      # triggering the search will be used for matching.
+      # To match the main executable, use an empty string instead of its path.
+      dependent_lib: .*
 
     # change the library file name to search
     # rename: my_libc.so
