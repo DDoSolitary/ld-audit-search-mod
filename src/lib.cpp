@@ -177,10 +177,8 @@ bool try_path(const char *path) {
 
   return true;
 }
-} // namespace
 
-extern "C" {
-unsigned la_version(unsigned version) {
+__attribute__((constructor)) void init() {
   CHECK_EXCEPT_BEGIN
 
   spdlog::set_default_logger(spdlog::stderr_color_st("ld-audit-search-mod"));
@@ -191,14 +189,9 @@ unsigned la_version(unsigned version) {
   if (cfg_path) {
     cfg = YAML::LoadFile(cfg_path);
   }
-  if (cfg) {
-    spdlog::set_level(spdlog::level::from_str(
-        (*cfg)["log_level"].as<std::string>("warning")));
-    SPDLOG_DEBUG("version={}, cfg_path={}", version, cfg_path);
-    enabled = true;
-  }
-
-  // init global state
+  spdlog::set_level(
+      spdlog::level::from_str((*cfg)["log_level"].as<std::string>("warning")));
+  SPDLOG_DEBUG("cfg_path={}", cfg_path);
   is_nix_rtld = dl_iterate_phdr(
       [](dl_phdr_info *info, size_t, void *) -> int {
         CHECK_EXCEPT_BEGIN
@@ -217,14 +210,74 @@ unsigned la_version(unsigned version) {
       },
       nullptr);
 
-  CHECK_EXCEPT_END
+  Dl_info addr_info;
+  if (!dladdr((void *)&init, &addr_info)) {
+    SPDLOG_ERROR("dladdr: {}", dlerror());
+    return;
+  }
+  auto self_handle = dlopen(addr_info.dli_fname, RTLD_LAZY | RTLD_NOLOAD);
+  if (!self_handle) {
+    SPDLOG_ERROR("dlopen: {}", dlerror());
+    return;
+  }
+  Lmid_t lmid;
+  if (dlinfo(self_handle, RTLD_DI_LMID, &lmid)) {
+    SPDLOG_ERROR("dlinfo: {}", dlerror());
+    return;
+  }
+  // rtld loads audit modules in separate namespaces
+  if (lmid != LM_ID_BASE) {
+    enabled = true;
+    return;
+  }
 
+  auto exe_name = std::filesystem::read_symlink("/proc/self/exe");
+  SPDLOG_DEBUG("executable name: {}", exe_name.c_str());
+  for (auto env_rule : (*cfg)["env"]) {
+    if (auto rtld_type = env_rule["cond"]["rtld"].as<std::string>("any");
+        !(rtld_type == "nix" && is_nix_rtld ||
+          rtld_type == "normal" && !is_nix_rtld || rtld_type == "any")) {
+      continue;
+    }
+    if (!std::regex_match(
+            exe_name.c_str(),
+            std::regex(env_rule["cond"]["exe"].as<std::string>(".*")))) {
+      continue;
+    }
+    for (auto setenv_node : env_rule["setenv"]) {
+      auto name = setenv_node.first.as<std::string>();
+      auto value = setenv_node.second.as<std::string>();
+      SPDLOG_DEBUG("setenv {}={}", name, value);
+      setenv(name.c_str(), value.c_str(), true);
+    }
+    for (auto unsetenv_node : env_rule["unsetenv"]) {
+      auto name = unsetenv_node.as<std::string>();
+      SPDLOG_DEBUG("unsetenv {}", name);
+      unsetenv(name.c_str());
+    }
+  }
+
+  CHECK_EXCEPT_END
+}
+} // namespace
+
+extern "C" {
+unsigned la_version(unsigned version) {
   // current version is 2, version 1 only differs in la_symbind
   // https://github.com/bminor/glibc/commit/32612615c58b394c3eb09f020f31310797ad3854
+  unsigned ret;
   if (version <= 2) {
-    return version;
+    ret = version;
+  } else {
+    ret = LAV_CURRENT;
   }
-  return LAV_CURRENT;
+
+  if (!enabled) {
+    return ret;
+  }
+
+  SPDLOG_DEBUG("version={}", version);
+  return ret;
 }
 
 char *la_objsearch(const char *name_const, uintptr_t *cookie,
@@ -395,6 +448,18 @@ void la_preinit(uintptr_t *cookie) {
   CHECK_EXCEPT_BEGIN
   SPDLOG_DEBUG("cookie={}", fmt::ptr(cookie));
   cur_state.reset();
+
+  if ((*cfg)["env"]) {
+    Dl_info info;
+    if (dladdr((void *)&la_preinit, &info)) {
+      // load self into the base namespace so that we can manipulate environ
+      // there
+      SPDLOG_DEBUG("dlmopen {}", info.dli_fname);
+      dlmopen(LM_ID_BASE, info.dli_fname, RTLD_LAZY | RTLD_LOCAL);
+    } else {
+      SPDLOG_ERROR("dladdr: {}", dlerror());
+    }
+  }
   CHECK_EXCEPT_END
 }
 }

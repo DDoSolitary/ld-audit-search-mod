@@ -53,3 +53,17 @@ rules:
       filter:
         - include: /lib64/.*
         - exclude: .*
+env:
+  - cond:
+      # same as rules.cond.rtld
+      rtld: nix
+      # (optional) regexp matching the full path to the running executable
+      exe: .*
+    # set/unset environment variables
+    # this is done by calling libc's setenv()/unsetenv() in a DT_INIT function,
+    # so it may not affect programs that reads env vars in another DT_INIT
+    # function, or doesn't use libc to read env vars (e.g. Golang)
+    setenv:
+      NAME1: VALUE
+    unsetenv:
+      - NAME2
