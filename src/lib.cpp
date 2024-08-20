@@ -210,23 +210,21 @@ __attribute__((constructor)) void init() {
       },
       nullptr);
 
-  Dl_info addr_info;
-  if (!dladdr((void *)&init, &addr_info)) {
-    SPDLOG_ERROR("dladdr: {}", dlerror());
-    return;
-  }
-  auto self_handle = dlopen(addr_info.dli_fname, RTLD_LAZY | RTLD_NOLOAD);
-  if (!self_handle) {
-    SPDLOG_ERROR("dlopen: {}", dlerror());
-    return;
-  }
-  Lmid_t lmid;
-  if (dlinfo(self_handle, RTLD_DI_LMID, &lmid)) {
-    SPDLOG_ERROR("dlinfo: {}", dlerror());
-    return;
-  }
-  // rtld loads audit modules in separate namespaces
-  if (lmid != LM_ID_BASE) {
+  // rtld loads audit modules in separate namespaces, where the main executable
+  // is not visible.
+  // To find out if we are loaded as an audit module, we check if the main
+  // executable is missing in the current link namespace.
+  // The executable is distinguishable from normal shared libraries because its
+  // dlpi_name is an empty string, as documented in dl_iterate_phdr(3).
+  // Theoretically, we can also get the ID of the current link namespace using
+  // dlinfo. However, calling dlfcn functions in a constructor function of an
+  // audit module causes crashes on old versions of glibc.
+  bool is_auditing = !dl_iterate_phdr(
+      [](dl_phdr_info *info, size_t, void *) -> int {
+        return strcmp(info->dlpi_name, "") == 0;
+      },
+      nullptr);
+  if (is_auditing) {
     enabled = true;
     return;
   }
