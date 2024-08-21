@@ -286,6 +286,8 @@ unsigned la_version(unsigned version) {
   }
 
   if (!enabled) {
+    // returning 0 causes crashes on old versions of glibc
+    // https://sourceware.org/bugzilla/show_bug.cgi?id=24122
     return ret;
   }
 
@@ -310,16 +312,48 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
   if (flag == LA_SER_ORIG) {
     cur_state.emplace();
 
-    // undocumented way to retrieve link_map of the dependent library
-    auto lm = *(const link_map *const *)cookie;
-    cur_state->has_dt_runpath = false;
-    for (auto dyn = lm->l_ld; dyn->d_tag != DT_NULL; dyn++) {
-      if (dyn->d_tag == DT_RUNPATH) {
-        cur_state->has_dt_runpath = true;
+    // An undocumented way to retrieve link_map of the dependent library.
+    // https://github.com/bminor/glibc/blob/glibc-2.39/elf/dl-object.c#L141
+
+    // The cookie is obtained from the "loader" argument of _dl_map_object.
+    // However, the argument will be NULL if all of the following conditions are
+    // met:
+    // - There are no '$' signs in the file name. (e.g. $ORIGIN)
+    // - The library is requested by dlmopen and will be loaded into the
+    // specified namespace rather than the same one as the caller.
+    // - There are '/' characters in the file name, which means the path will be
+    // used directly, skipping the search process.
+    // In old versions of glibc, there's no null check before retrieving the
+    // cookie, so the cookie passed to us will be an invalid pointer very close
+    // to NULL.
+    // Since glibc 2.35, a null check has been added as part of a refactor
+    // commit, and the call to la_objsearch will be simply skipped in such
+    // cases. This might not be the desired behavior, but at least does not
+    // cause problems here.
+    // See:
+    // https://github.com/bminor/glibc/blob/glibc-2.39/elf/dl-open.c#L545
+    // https://github.com/bminor/glibc/commit/c91008d3490e4e3ce29520068405f081f0d368ca#diff-ef795de39b8938f8a53c695ad13dc97ca639a93eaf18a770745b3633670490acR50
+    // The maximum value of bad cookies should be sizeof(link_map) +
+    // sizeof(auditstate) * DL_NNS. Anyway we just test against some larger
+    // value here, as any value that low should not be a valid pointer on a
+    // sanely configured system.
+    const char *dep_lib_path;
+    if ((uintptr_t)cookie < 65536) {
+      // empty string "" indicates the main executable, just put something else
+      // that can't be a file path here
+      dep_lib_path = "/";
+      SPDLOG_DEBUG("invalid cookie, can't read loader link_map");
+    } else {
+      auto lm = *(const link_map *const *)cookie;
+      cur_state->has_dt_runpath = false;
+      for (auto dyn = lm->l_ld; dyn->d_tag != DT_NULL; dyn++) {
+        if (dyn->d_tag == DT_RUNPATH) {
+          cur_state->has_dt_runpath = true;
+        }
       }
+      SPDLOG_DEBUG("l_name={} has_dt_runpath={}", lm->l_name,
+                   cur_state->has_dt_runpath);
     }
-    SPDLOG_DEBUG("l_name={} has_dt_runpath={}", lm->l_name,
-                 cur_state->has_dt_runpath);
 
     cur_state->rule.reset(YAML::Node(YAML::NodeType::Undefined));
     auto rules = (*cfg)["rules"];
@@ -337,7 +371,7 @@ char *la_objsearch(const char *name_const, uintptr_t *cookie,
         continue;
       }
       if (!std::regex_match(
-              lm->l_name,
+              dep_lib_path,
               std::regex(
                   rule["cond"]["dependent_lib"].as<std::string>(".*")))) {
         continue;
