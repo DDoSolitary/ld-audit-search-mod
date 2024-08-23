@@ -28,6 +28,7 @@ final: prev: let
       doCheck = false;
     });
     yaml-cpp = final.yaml-cpp.override { inherit (self) stdenv; };
+    mimalloc = final.mimalloc.override { inherit (self) stdenv; };
     ${name} = self.callPackage ./. { stdenv = stdenvZig; };
   });
 in {

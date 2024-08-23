@@ -1,7 +1,7 @@
-{ stdenv, spdlog, yaml-cpp, cmake }: stdenv.mkDerivation {
+{ stdenv, spdlog, yaml-cpp, cmake, mimalloc }: stdenv.mkDerivation {
   name = "ld-audit-search-mod";
   src = ./src;
-  buildInputs = [ spdlog yaml-cpp ];
+  buildInputs = [ spdlog yaml-cpp mimalloc ];
   nativeBuildInputs = [ cmake ];
   preConfigure = ''
     nix_rtld_path=$(cat ${stdenv.cc}/nix-support/dynamic-linker)
