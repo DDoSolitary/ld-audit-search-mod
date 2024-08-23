@@ -8,6 +8,7 @@
       myOverlay = import ./overlay.nix;
     in flake-utils.lib.eachSystem [
       "x86_64-linux"
+      "i686-linux"
       "aarch64-linux"
     ] (system: let
       pkgs = import nixpkgs { inherit system; overlays = [ myOverlay ]; };
