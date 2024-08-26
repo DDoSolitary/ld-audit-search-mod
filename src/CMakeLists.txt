@@ -14,6 +14,6 @@ target_compile_definitions(ld-audit-search-mod PRIVATE
     NIX_STORE_DIR="${NIX_STORE_DIR}"
     NIX_RTLD_NAME="${NIX_RTLD_NAME}")
 target_link_libraries(ld-audit-search-mod PRIVATE yaml-cpp::yaml-cpp spdlog::spdlog)
-target_link_options(ld-audit-search-mod PRIVATE -static-libgcc -static-libstdc++)
+target_link_options(ld-audit-search-mod PRIVATE -static-libgcc -static-libstdc++ LINKER:-Bsymbolic)
 
 install(TARGETS ld-audit-search-mod)
