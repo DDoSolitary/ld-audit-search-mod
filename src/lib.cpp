@@ -243,7 +243,7 @@ __attribute__((constructor)) void init() {
       env_data.emplace(name.substr(setenv_prefix.size()),
                        data.substr(eq_pos + 1));
     } else if (name.compare(0, unsetenv_prefix.size(), unsetenv_prefix) == 0) {
-      env_data.emplace(name.substr(unsetenv_prefix.size()), nullptr);
+      env_data.emplace(name.substr(unsetenv_prefix.size()), std::nullopt);
     }
   }
   for (auto &&x : env_data) {
@@ -316,7 +316,7 @@ __attribute__((constructor)) void init() {
     for (auto unsetenv_node : env_rule["unsetenv"]) {
       auto name = unsetenv_node.as<std::string>();
       SPDLOG_DEBUG("unsetenv {}", name);
-      env_data[name] = nullptr;
+      env_data[name] = std::nullopt;
       setenv((unsetenv_prefix + name).c_str(), "1", true);
     }
   }
