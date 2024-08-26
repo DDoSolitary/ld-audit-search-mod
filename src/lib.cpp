@@ -229,6 +229,29 @@ __attribute__((constructor)) void init() {
     return;
   }
 
+  std::map<std::string, std::optional<std::string>> env_data;
+  std::string setenv_prefix = "LASM_SETENV_";
+  std::string unsetenv_prefix = "LASM_UNSETENV_";
+  for (size_t i = 0; environ[i] != nullptr; i++) {
+    std::string data = environ[i];
+    auto eq_pos = data.find("=");
+    if (eq_pos == std::string::npos) {
+      continue;
+    }
+    auto name = data.substr(0, eq_pos);
+    if (name.compare(0, setenv_prefix.size(), setenv_prefix) == 0) {
+      env_data.emplace(name.substr(setenv_prefix.size()),
+                       data.substr(eq_pos + 1));
+    } else if (name.compare(0, unsetenv_prefix.size(), unsetenv_prefix) == 0) {
+      env_data.emplace(name.substr(unsetenv_prefix.size()), nullptr);
+    }
+  }
+  for (auto &&x : env_data) {
+    auto name = (x.second ? setenv_prefix : unsetenv_prefix) + x.first;
+    SPDLOG_DEBUG("unsetenv {}", name);
+    unsetenv(name.c_str());
+  }
+
   auto exe_name = std::filesystem::read_symlink("/proc/self/exe");
   SPDLOG_DEBUG("executable name: {}", exe_name.c_str());
   for (auto env_rule : (*cfg)["env"]) {
@@ -242,8 +265,22 @@ __attribute__((constructor)) void init() {
             std::regex(env_rule["cond"]["exe"].as<std::string>(".*")))) {
       continue;
     }
+
     for (auto setenv_node : env_rule["setenv"]) {
       auto name = setenv_node.first.as<std::string>();
+
+      std::string old_value;
+      bool has_old_value = false;
+      if (auto it = env_data.find(name); it != env_data.end()) {
+        has_old_value = bool(it->second);
+        if (has_old_value) {
+          old_value = *it->second;
+        }
+      } else if (auto ptr = getenv(name.c_str()); ptr != nullptr) {
+        has_old_value = true;
+        old_value = ptr;
+      }
+
       std::stringstream ss;
       if (setenv_node.second.IsScalar()) {
         ss << setenv_node.second.as<std::string>();
@@ -251,22 +288,44 @@ __attribute__((constructor)) void init() {
         auto type = setenv_node.second["type"].as<std::string>();
         auto splitter = setenv_node.second["splitter"].as<std::string>(":");
         auto new_value = setenv_node.second["value"].as<std::string>();
-        if (auto orig_ptr = getenv(name.c_str()); orig_ptr) {
-          if (type == "prepend") {
-            ss << new_value << splitter << orig_ptr;
-          } else if (type == "append") {
-            ss << orig_ptr << splitter << new_value;
+        if (type == "prepend") {
+          ss << new_value;
+          if (old_value.size() > 0 && old_value.front() != splitter[0]) {
+            ss << splitter;
           }
+          ss << old_value;
+        } else if (type == "append") {
+          ss << old_value;
+          if (old_value.size() > 0 && old_value.back() != splitter[0]) {
+            ss << splitter;
+          }
+          ss << new_value;
         }
       }
+
       auto value = ss.str();
       SPDLOG_DEBUG("setenv {}={}", name, value);
-      setenv(name.c_str(), value.c_str(), true);
+      env_data[name] = value;
+      if (has_old_value) {
+        setenv((setenv_prefix + name).c_str(), old_value.c_str(), true);
+      } else {
+        setenv((unsetenv_prefix + name).c_str(), "1", true);
+      }
     }
+
     for (auto unsetenv_node : env_rule["unsetenv"]) {
       auto name = unsetenv_node.as<std::string>();
       SPDLOG_DEBUG("unsetenv {}", name);
-      unsetenv(name.c_str());
+      env_data[name] = nullptr;
+      setenv((unsetenv_prefix + name).c_str(), "1", true);
+    }
+  }
+
+  for (auto &&x : env_data) {
+    if (x.second) {
+      setenv(x.first.c_str(), x.second->c_str(), true);
+    } else {
+      unsetenv(x.first.c_str());
     }
   }
 
