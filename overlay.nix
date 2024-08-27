@@ -28,7 +28,11 @@ final: prev: let
       doCheck = false;
     });
     yaml-cpp = final.yaml-cpp.override { inherit (self) stdenv; };
-    mimalloc = final.mimalloc.override { inherit (self) stdenv; };
+    mimalloc = (final.mimalloc.override { inherit (self) stdenv; }).overrideAttrs (old: {
+      postPatch = (old.postPatch or "") + ''
+        find include/mimalloc -type f -name '*.h' -exec sed -i '/^#define  MI_USE_PTHREADS$/d' {} \;
+      '';
+    });
     ${name} = self.callPackage ./. { stdenv = stdenvZig; };
   });
 in {
