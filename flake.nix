@@ -18,7 +18,7 @@
         default = pkgs.${name};
         ${name} = default;
       };
-      devShells.default = pkgs.mkShell {
+      devShells.default = (pkgs.mkShell.override { stdenv = pkgs.${name}.stdenv; }) {
         inputsFrom = [ pkgs.${name} ];
         packages = [ pkgs.clang-tools ];
       };
