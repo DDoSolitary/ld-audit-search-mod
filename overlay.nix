@@ -8,7 +8,7 @@ final: prev: let
       ];
     });
   })).stdenv;
-  stdenvZigStatic = (final.makeStatic stdenvZig).override (old: {
+  stdenvZigStatic = stdenvZig.override (old: {
     hostPlatform = old.hostPlatform // { isStatic = true; };
   });
   scope = final.lib.makeScope final.newScope (self: {

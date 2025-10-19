@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.29)
 
+# zig doesn't support --dependency-file currently
+# https://github.com/ziglang/zig-bootstrap/issues/206
+set(CMAKE_C_LINKER_DEPFILE_SUPPORTED FALSE)
+set(CMAKE_CXX_LINKER_DEPFILE_SUPPORTED FALSE)
+
 project(fuck CXX)
 
 find_package(yaml-cpp REQUIRED)
