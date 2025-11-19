@@ -4,7 +4,7 @@ final: prev: let
   stdenvZig = (final.zig.override (old : {
     wrapCCWith = args: old.wrapCCWith (final.lib.recursiveUpdate args {
       nixSupport.cc-cflags = args.nixSupport.cc-cflags ++ [
-        "-target" "${final.hostPlatform.system}-gnu.${glibcTargetVersion}"
+        "-target" "${final.stdenv.hostPlatform.system}-gnu.${glibcTargetVersion}"
       ];
     });
   })).stdenv;
