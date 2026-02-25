@@ -1,13 +1,26 @@
 final: prev: let
   name = "ld-audit-search-mod";
   glibcTargetVersion = "2.17";
-  stdenvZig = (final.zig.override (old : {
-    wrapCCWith = args: old.wrapCCWith (final.lib.recursiveUpdate args {
-      nixSupport.cc-cflags = args.nixSupport.cc-cflags ++ [
-        "-target" "${final.stdenv.hostPlatform.system}-gnu.${glibcTargetVersion}"
-      ];
+  stdenvZig = final.zig.stdenv.override {
+    cc = final.zig.cc.override (old: {
+      # https://github.com/NixOS/nixpkgs/pull/463199
+      cc = old.cc.overrideAttrs (old: {
+        passthru = old.passthru // {
+          hardeningUnsupportedFlags = old.passthru.hardeningUnsupportedFlags or [] ++ [
+            "libcxxhardeningfast"
+            "libcxxhardeningextensive"
+          ];
+        };
+      });
+      # Target an old glibc version to make it compatible with old host systems.
+      nixSupport = final.lib.recursiveUpdate old.nixSupport {
+        cc-cflags = old.nixSupport.cc-cflags ++ [
+          "-target"
+          "${final.stdenv.targetPlatform.system}-gnu.${glibcTargetVersion}"
+        ];
+      };
     });
-  })).stdenv;
+  };
   stdenvZigStatic = stdenvZig.override (old: {
     hostPlatform = old.hostPlatform // { isStatic = true; };
   });
