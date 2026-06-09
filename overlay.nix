@@ -1,8 +1,8 @@
 final: prev: let
   name = "ld-audit-search-mod";
   glibcTargetVersion = "2.17";
-  stdenvZig = final.zig.stdenv.override {
-    cc = final.zig.cc.override (old: {
+  stdenvZig = final.zig_0_15.stdenv.override {
+    cc = final.zig_0_15.cc.override (old: {
       # https://github.com/NixOS/nixpkgs/pull/463199
       cc = old.cc.overrideAttrs (old: {
         passthru = old.passthru // {
