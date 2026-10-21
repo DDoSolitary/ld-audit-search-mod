@@ -13,18 +13,18 @@ jobs:
         arch:
           - x86_64
           - aarch64
-    runs-on: ubuntu-latest
+        include:
+          - arch: x86_64
+            os: ubuntu-latest
+          - arch: aarch64
+            os: ubuntu-26.04-arm
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.arch == 'aarch64' }}
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          sudo apt-get -y update
-          sudo apt-get -y install binfmt-support qemu-user-static
-          sudo mkdir -p /etc/nix
-          echo "extra-platforms = ${{ matrix.arch }}-linux" | sudo tee -a /etc/nix/nix.conf
-          sudo systemctl restart nix-daemon
       - run: nix build -L --no-update-lock-file .#packages.${{ matrix.arch }}-linux.default
       - uses: actions/upload-artifact@v7
         with:
